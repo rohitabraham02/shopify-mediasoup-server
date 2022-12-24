@@ -15,11 +15,12 @@ const options = {
 }
 
 const httpsServer = https.createServer(options, app)
-const io = require('socket.io')(httpsServer,{
+const io = require('socket.io')(httpsServer, {
   cors: {
-    origin: ["https://storage.googleapis.com/vlc-shopify-client/index.html"],
-    methods: ["GET", "POST"]  
-  }});
+    origin: ["https://storage.googleapis.com/vlc-shopify-client/index.html", "http://localhost:3000", "http://localhost:3002"],
+    methods: ["GET", "POST"]
+  }
+});
 
 app.use(express.static(path.join(__dirname, '..', 'public')))
 
@@ -51,9 +52,9 @@ let nextMediasoupWorkerIdx = 0
  */
 let roomList = new Map()
 
-;(async () => {
-  await createWorkers()
-})()
+  ; (async () => {
+    await createWorkers()
+  })()
 
 async function createWorkers() {
   let { numWorkers } = config.mediasoup
@@ -104,12 +105,14 @@ io.on('connection', (socket) => {
         error: 'Room does not exist'
       })
     }
-
-    roomList.get(room_id).addPeer(new Peer(socket.id, name))
-    socket.room_id = room_id
-
-    cb(roomList.get(room_id).toJson())
+    socket.room_id = room_id;
+    const room = roomList.get(socket.room_id);
+    room.addPeer(new Peer(socket.id, name));
+    const count = room.getPeers().size;
+    room.broadCast(socket.id, 'changeInMember', count);
+    cb(room.toJson())
   })
+
 
   socket.on('getProducers', () => {
     if (!roomList.has(socket.room_id)) return
@@ -208,6 +211,9 @@ io.on('connection', (socket) => {
 
     if (!socket.room_id) return
     roomList.get(socket.room_id).removePeer(socket.id)
+    const room = roomList.get(socket.room_id);
+    const count = room.getPeers().size || 0;
+    room.broadCast(socket.id, 'changeInMember', count);
   })
 
   socket.on('producerClosed', ({ producer_id }) => {
@@ -230,7 +236,10 @@ io.on('connection', (socket) => {
       return
     }
     // close transports
+    const room = roomList.get(socket.room_id);
     await roomList.get(socket.room_id).removePeer(socket.id)
+    const count = room.getPeers().size || 0;
+    room.broadCast(socket.id, 'changeInMember', count);
     if (roomList.get(socket.room_id).getPeers().size === 0) {
       roomList.delete(socket.room_id)
     }
