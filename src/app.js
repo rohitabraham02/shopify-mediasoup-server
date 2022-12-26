@@ -108,8 +108,7 @@ io.on('connection', (socket) => {
     socket.room_id = room_id;
     const room = roomList.get(socket.room_id);
     room.addPeer(new Peer(socket.id, name));
-    const count = room.getPeers().size;
-    room.broadCast(socket.id, 'changeInMember', count);
+    room.broadCast(null, 'changeInMember', room.toJson());
     cb(room.toJson())
   })
 
@@ -120,7 +119,6 @@ io.on('connection', (socket) => {
 
     // send all the current producer to newly joined member
     let producerList = roomList.get(socket.room_id).getProducerListForPeer()
-
     socket.emit('newProducers', producerList)
   })
 
@@ -170,16 +168,14 @@ io.on('connection', (socket) => {
     }
 
     let producer_id = await roomList.get(socket.room_id).produce(socket.id, producerTransportId, rtpParameters, kind)
+    let Produce = {
+      type: kind,
+      name: roomList.get(socket.room_id).getPeers().get(socket.id).name,
+      producer_id: producer_id
+    }
+    console.log(Produce)
 
-    console.log('Produce', {
-      type: `${kind}`,
-      name: `${roomList.get(socket.room_id).getPeers().get(socket.id).name}`,
-      id: `${producer_id}`
-    })
-
-    callback({
-      producer_id
-    })
+    callback(Produce)
   })
 
   socket.on('consume', async ({ consumerTransportId, producerId, rtpCapabilities }, callback) => {
@@ -212,8 +208,7 @@ io.on('connection', (socket) => {
     if (!socket.room_id) return
     roomList.get(socket.room_id).removePeer(socket.id)
     const room = roomList.get(socket.room_id);
-    const count = room.getPeers().size || 0;
-    room.broadCast(socket.id, 'changeInMember', count);
+    room.broadCast(null, 'changeInMember', room.toJson());
   })
 
   socket.on('producerClosed', ({ producer_id }) => {
@@ -238,8 +233,7 @@ io.on('connection', (socket) => {
     // close transports
     const room = roomList.get(socket.room_id);
     await roomList.get(socket.room_id).removePeer(socket.id)
-    const count = room.getPeers().size || 0;
-    room.broadCast(socket.id, 'changeInMember', count);
+    room.broadCast(null, 'changeInMember', room.toJson());
     if (roomList.get(socket.room_id).getPeers().size === 0) {
       roomList.delete(socket.room_id)
     }

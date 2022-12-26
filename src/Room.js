@@ -26,7 +26,8 @@ module.exports = class Room {
     this.peers.forEach((peer) => {
       peer.producers.forEach((producer) => {
         producerList.push({
-          producer_id: producer.id
+          producer_id: producer.id,
+          name: peer.name
         })
       })
     })
@@ -50,7 +51,7 @@ module.exports = class Room {
     if (maxIncomingBitrate) {
       try {
         await transport.setMaxIncomingBitrate(maxIncomingBitrate)
-      } catch (error) {}
+      } catch (error) { }
     }
 
     transport.on(
@@ -90,11 +91,13 @@ module.exports = class Room {
     return new Promise(
       async function (resolve, reject) {
         let producer = await this.peers.get(socket_id).createProducer(producerTransportId, rtpParameters, kind)
+        const name = this.peers.get(socket_id).name
         resolve(producer.id)
         this.broadCast(socket_id, 'newProducers', [
           {
             producer_id: producer.id,
-            producer_socket_id: socket_id
+            producer_socket_id: socket_id,
+            name
           }
         ])
       }.bind(this)
@@ -127,7 +130,8 @@ module.exports = class Room {
         this.peers.get(socket_id).removeConsumer(consumer.id)
         // tell client consumer is dead
         this.io.to(socket_id).emit('consumerClosed', {
-          consumer_id: consumer.id
+          consumer_id: consumer.id,
+          type: consumer.kind
         })
       }.bind(this)
     )
